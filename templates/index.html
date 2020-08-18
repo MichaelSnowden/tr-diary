@@ -305,7 +305,7 @@
                 if (stroke.length >= 2) {
                     context.strokeStyle = "rgba(0, 0, 0, 1)";
                     context.fillStyle = "rgba(0, 0, 0, 1)";
-                    context.lineWidth = 7;
+                    context.lineWidth = document.body.clientWidth < 500 ? 5 : 7;
                     context.lineCap = "round";
                     context.beginPath();
                     let {x, y} = toCanvas(stroke[0]);
