@@ -26,6 +26,7 @@
     </style>
 </head>
 <body>
+<audio id="theme" src="static/theme.mp3" loop></audio>
 <canvas id="canvas"></canvas>
 <script>
     const canvas = document.getElementById("canvas");
@@ -117,6 +118,9 @@
 
     function mouseDown(e) {
         stop(e);
+        if (!currentStrokeId) {
+            document.getElementById("theme").play();
+        }
         dragging = true;
         currentStrokeId = uuidv4();
         newPoint(e);
@@ -144,7 +148,7 @@
     let prevTime = null;
 
     function slowlyFade(delta) {
-        const FADE_OUT_RATE = 0.001;
+        const FADE_OUT_RATE = 0.003;
         const alpha = delta * FADE_OUT_RATE;
         context.save();
         context.fillStyle = `rgba(255,255,255,${alpha})`;
@@ -169,8 +173,8 @@
                 }
                 for (let i = 0; i < stroke.length; ++i) {
                     const point = stroke[i];
-                    const STROKE_LIFESPAN = 5000;
-                    if (time - point.time > STROKE_LIFESPAN) {
+                    const STROKE_LIFESPAN_TIME = 5000;
+                    if (time - point.time > STROKE_LIFESPAN_TIME) {
                         toRemove += 1;
                     } else {
                         break;
@@ -255,7 +259,7 @@
             if (message_type === "paint") {
                 addPoint(message["artist_id"], message["stroke_id"], message["point"]);
             } else if (message_type === "num_peers") {
-                renderNumPeers(message["num_peers"]);
+                console.log(message);
             }
         }
         socket.onerror = function (e) {
@@ -265,6 +269,7 @@
             console.error("socket closed", e);
             numRetries += 1;
             if (numRetries < 10) {
+                socket = null;
                 reconnectTimeout = setTimeout(connect, 200 * Math.pow(2, numRetries));
             } else {
                 console.error("the connection is messed up, try refreshing the page");

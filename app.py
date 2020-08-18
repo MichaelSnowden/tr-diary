@@ -61,8 +61,11 @@ def canvas_socket(socket: WebSocket, canvas_id):
     canvas.remove(socket)
 
 
+@app.route('/')
 @app.route('/<canvas_id>')
-def canvas_view(canvas_id):
+def canvas_view(canvas_id=None):
+    if canvas_id is None:
+        canvas_id = "default"
     if canvas_id not in canvases:
         canvases[canvas_id] = Canvas(canvas_id)
     canvas = canvases[canvas_id]
