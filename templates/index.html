@@ -28,6 +28,7 @@
 <body>
 <audio id="theme" src="static/theme.mp3" loop></audio>
 <canvas id="canvas"></canvas>
+<script src="static/fonts.js"></script>
 <script>
     const canvas = document.getElementById("canvas");
     const context = canvas.getContext("2d");
@@ -47,7 +48,7 @@
     let dragging = false;
 
     const myArtistId = "{{ my_id }}";
-    const artists = {};
+    const writers = {};
 
     function getMouse(e) {
         const rect = canvas.getBoundingClientRect();
@@ -77,14 +78,14 @@
         return Math.atan2(point2.x - point1.x, point2.y - point1.y);
     }
 
-    function addPoint(artistId, strokeId, point) {
-        if (!artists[artistId]) {
-            artists[artistId] = {strokes: {}};
+    function addPoint(writerId, strokeId, point) {
+        if (!writers[writerId]) {
+            writers[writerId] = {strokes: {}};
         }
-        if (!artists[artistId].strokes[strokeId]) {
-            artists[artistId].strokes[strokeId] = [];
+        if (!writers[writerId].strokes[strokeId]) {
+            writers[writerId].strokes[strokeId] = [];
         }
-        artists[artistId].strokes[strokeId].push(point);
+        writers[writerId].strokes[strokeId].push(point);
 
     }
 
@@ -95,14 +96,15 @@
 
         let message = {
             "type": "paint",
-            "artist_id": myArtistId,
+            "writer_id": myArtistId,
             "stroke_id": currentStrokeId,
             "point": point,
         };
         socket.send(JSON.stringify(message));
     }
 
-    function stop(e) {
+    function stopEvent(e) {
+        e.stopImmediatePropagation();
         e.stopPropagation();
         e.preventDefault();
     }
@@ -117,7 +119,7 @@
     let currentStrokeId = null;
 
     function mouseDown(e) {
-        stop(e);
+        stopEvent(e);
         if (!currentStrokeId) {
             {#document.getElementById("theme").play();#}
         }
@@ -144,6 +146,121 @@
     canvas.addEventListener("mouseup", mouseUp);
     canvas.addEventListener("touchend", mouseUp);
 
+    let lastKeyPressTime = null;
+    let keyPressIndex = 0;
+    let lineWidth = 0;
+    const scale = 0.05;
+    const spaceWidth = scale * 1.1;
+    const lineHeight = scale * 1.3;
+    let line = 0;
+    window.addEventListener("keypress", function (e) {
+        let key = e.key;
+        if (fonts[key] === undefined && key !== " " && key !== "Enter") {
+            return;
+        }
+        stopEvent(e);
+        const time = Number(new Date());
+        if (lastKeyPressTime === null) {
+            lastKeyPressTime = time;
+        }
+        const timeSinceLastKey = time - lastKeyPressTime;
+        lastKeyPressTime = time;
+        if (timeSinceLastKey > 3000) {
+            keyPressIndex = 0;
+            lineWidth = 0;
+            line = 0;
+        }
+
+        if (key === " ") {
+            lineWidth += spaceWidth;
+            return;
+        }
+        if (key === "Enter") {
+            ++line;
+            lineWidth = 0;
+            return;
+        }
+        if (lineWidth + spaceWidth > 1.0) {
+            ++line;
+            lineWidth = 0;
+        }
+
+        const frozenLineWidth = lineWidth;
+        const frozenLine = line;
+
+        key = key.toUpperCase();
+        let xMin = null;
+        let xMax = null;
+        let yMin = null;
+        let yMax = null;
+        for (let stroke of fonts[key]) {
+            for (let point of stroke) {
+                if (xMin === null || point.x < xMin) {
+                    xMin = point.x;
+                }
+                if (xMax === null || point.x > xMax) {
+                    xMax = point.x;
+                }
+                if (yMin === null || point.y < yMin) {
+                    yMin = point.y;
+                }
+                if (yMax === null || point.y > yMax) {
+                    yMax = point.y;
+                }
+            }
+        }
+        lineWidth += spaceWidth;
+        let i = 0;
+        let j = 0;
+        let writerId = uuidv4();
+        writers[writerId] = {strokes: []};
+        const characterWriter = writers[writerId];
+        const strokes = characterWriter.strokes;
+
+        function write() {
+            if (i >= fonts[key].length) {
+                return;
+            }
+            if (j >= fonts[key][i].length) {
+                i = i + 1;
+                j = 0;
+                return write();
+            }
+            if (j === 0) {
+                strokes.push([]);
+            }
+            const point = fonts[key][i][j];
+
+            const xNormalized = (point.x - xMin) / (xMax - xMin);
+            const yNormalized = (point.y - yMin) / (yMax - yMin);
+            const xScaled = xNormalized * scale;
+            const yScaled = yNormalized * scale;
+            const xPadding = 0.05;
+            const yPadding = 0.05;
+            const xTranslated = xPadding + xScaled + frozenLineWidth;
+            const yTranslated = yPadding + yScaled + frozenLine * lineHeight;
+
+            const translatedPoint = {
+                x: xTranslated,
+                y: yTranslated,
+            }
+
+
+            strokes[strokes.length - 1].push(translatedPoint);
+            j = j + 1;
+            let message = {
+                "type": "paint",
+                "writer_id": writerId,
+                "stroke_id": i,
+                "point": translatedPoint,
+            };
+            socket.send(JSON.stringify(message));
+            setTimeout(write, point.time / 60);
+        }
+
+        write();
+    })
+
 
     let prevTime = null;
 
@@ -158,10 +275,12 @@
         context.restore();
     }
 
+    const STROKE_LIFESPAN_TIME = 5000;
+
     function drawStrokes(time) {
-        for (const artistId of Object.keys(artists)) {
-            const artist = artists[artistId];
-            const strokes = artist.strokes;
+        for (const writerId of Object.keys(writers)) {
+            const writer = writers[writerId];
+            const strokes = writer.strokes;
             for (const strokeId of Object.keys(strokes)) {
                 const stroke = strokes[strokeId];
                 let toRemove = 0;
@@ -173,7 +292,6 @@
                 }
                 for (let i = 0; i < stroke.length; ++i) {
                     const point = stroke[i];
-                    const STROKE_LIFESPAN_TIME = 5000;
                     if (time - point.time > STROKE_LIFESPAN_TIME) {
                         toRemove += 1;
                     } else {
@@ -187,7 +305,7 @@
                 if (stroke.length >= 2) {
                     context.strokeStyle = "rgba(0, 0, 0, 1)";
                     context.fillStyle = "rgba(0, 0, 0, 1)";
-                    context.lineWidth = 12;
+                    context.lineWidth = 7;
                     context.lineCap = "round";
                     context.beginPath();
                     let {x, y} = toCanvas(stroke[0]);
@@ -197,27 +315,6 @@
                         context.lineTo(x, y);
                     }
                     context.stroke();
-
-                    /*
-                    for (let i = 0; i < stroke.length - 1; ++i) {
-                        const point1 = stroke[i];
-                        const point2 = stroke[i + 1];
-                        const angle = angleBetween(point1, point2);
-                        const distance = distanceBetween(point1, point2);
-                        for (let j = 0.0; j < distance; j += 0.01) {
-                            const x = point1.x + (Math.sin(angle) * j);
-                            const y = point1.y + (Math.cos(angle) * j);
-                            const size = 20;
-                            const vx = x * canvas.width;
-                            const vy = y * canvas.height;
-                            //context.drawImage(brush, vx - size / 2, vy - size / 2, size, size);
-                            context.beginPath();
-                            context.arc(vx, vy, size / 2, 0, Math.PI * 2);
-                            context.fill();
-                        }
-                    }
-
-                     */
                 }
             }
         }
@@ -258,7 +355,7 @@
             message = JSON.parse(message.data);
             const message_type = message["type"]
             if (message_type === "paint") {
-                addPoint(message["artist_id"], message["stroke_id"], message["point"]);
+                addPoint(message["writer_id"], message["stroke_id"], message["point"]);
             } else if (message_type === "num_peers") {
                 console.log(message);
             }
