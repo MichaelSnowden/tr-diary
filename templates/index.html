@@ -16,19 +16,37 @@
             height: 100%;
             margin: 0;
         }
+
+        body {
+            background-color: black;
+            position: relative;
+            display: grid;
+            place-items: center;
+        }
     </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
 <script>
+    const canvas = document.getElementById("canvas");
+    const context = canvas.getContext("2d");
+    const backgroundImage = new Image();
+    backgroundImage.src = "static/paper.jpg";
+    context.translate(0.5, 0.5);
+
+    function resizeCanvas() {
+        const size = Math.min(document.body.clientWidth, document.body.clientHeight);
+        canvas.width = size;
+        canvas.height = size;
+    }
+
+    window.onresize = resizeCanvas;
+    resizeCanvas();
+
     let dragging = false;
 
     const myArtistId = "{{ my_id }}";
     const artists = {};
-
-    const canvas = document.getElementById("canvas");
-    const context = canvas.getContext("2d");
-    context.translate(0.5, 0.5);
 
     function getMouse(e) {
         const rect = canvas.getBoundingClientRect();
@@ -38,6 +56,13 @@
         const y = (clientY - rect.top) / (rect.bottom - rect.top);
 
         return {x, y};
+    }
+
+    function toCanvas({x, y}) {
+        return {
+            x: x * canvas.width,
+            y: y * canvas.height,
+        };
     }
 
     const brush = new Image();
@@ -115,26 +140,18 @@
     canvas.addEventListener("mouseup", mouseUp);
     canvas.addEventListener("touchend", mouseUp);
 
-    function resizeCanvas() {
-        const size = Math.max(document.body.clientWidth, document.body.clientHeight);
-        canvas.width = size;
-        canvas.height = size;
-    }
-
-    window.onresize = resizeCanvas;
-    resizeCanvas();
-
 
     let prevTime = null;
 
-    function slowlyFade() {
-        const alpha = 0.2;
+    function slowlyFade(delta) {
+        const FADE_OUT_RATE = 0.001;
+        const alpha = delta * FADE_OUT_RATE;
+        context.save();
         context.fillStyle = `rgba(255,255,255,${alpha})`;
-        context.fillRect(0, 0, canvas.width, canvas.height);
-    }
-
-    function renderNumPeers() {
-
+        context.globalAlpha = alpha;
+        context.globalCompositeOperation = "source-cover";
+        context.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+        context.restore();
     }
 
     function drawStrokes(time) {
@@ -152,7 +169,8 @@
                 }
                 for (let i = 0; i < stroke.length; ++i) {
                     const point = stroke[i];
-                    if (time - point.time > 3000) {
+                    const STROKE_LIFESPAN = 5000;
+                    if (time - point.time > STROKE_LIFESPAN) {
                         toRemove += 1;
                     } else {
                         break;
@@ -163,13 +181,15 @@
                 }
 
                 if (stroke.length >= 2) {
-                    context.strokeStyle = "rgba(0, 0, 0, 0.8)";
-                    context.fillStyle = "rgba(0, 0, 0, 0.8)";
-                    context.lineWidth = 20;
+                    context.strokeStyle = "rgba(0, 0, 0, 1)";
+                    context.fillStyle = "rgba(0, 0, 0, 1)";
+                    context.lineWidth = 12;
                     context.beginPath();
-                    context.moveTo(stroke[0].x * canvas.width, stroke[0].y * canvas.height);
+                    let {x, y} = toCanvas(stroke[0]);
+                    context.moveTo(x, y);
                     for (let i = 1; i < stroke.length; ++i) {
-                        context.lineTo(stroke[i].x * canvas.width, stroke[i].y * canvas.height);
+                        let {x, y} = toCanvas(stroke[i]);
+                        context.lineTo(x, y);
                     }
                     context.stroke();
 
@@ -205,7 +225,7 @@
         const delta = time - prevTime;
         prevTime = time;
 
-        slowlyFade();
+        slowlyFade(delta);
 
         drawStrokes(time);
 
@@ -223,7 +243,7 @@
             clearTimeout(reconnectTimeout);
             reconnectTimeout = null;
         }
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws";
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         socket = new WebSocket(`${protocol}//${window.location.host}/socket/{{ canvas_id }}`);
         socket.onopen = function () {
             console.log("socket opened");
@@ -244,8 +264,8 @@
         socket.onclose = function (e) {
             console.error("socket closed", e);
             numRetries += 1;
-            if (numRetries < 5) {
-                reconnectTimeout = setTimeout(connect, 200);
+            if (numRetries < 10) {
+                reconnectTimeout = setTimeout(connect, 200 * Math.pow(2, numRetries));
             } else {
                 console.error("the connection is messed up, try refreshing the page");
             }
