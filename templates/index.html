@@ -223,7 +223,8 @@
             clearTimeout(reconnectTimeout);
             reconnectTimeout = null;
         }
-        socket = new WebSocket(`ws://${window.location.host}/socket/{{ canvas_id }}`);
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws";
+        socket = new WebSocket(`${protocol}//${window.location.host}/socket/{{ canvas_id }}`);
         socket.onopen = function () {
             console.log("socket opened");
             numRetries = 0;
