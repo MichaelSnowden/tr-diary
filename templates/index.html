@@ -119,7 +119,7 @@
     function mouseDown(e) {
         stop(e);
         if (!currentStrokeId) {
-            document.getElementById("theme").play();
+            {#document.getElementById("theme").play();#}
         }
         dragging = true;
         currentStrokeId = uuidv4();
@@ -148,7 +148,7 @@
     let prevTime = null;
 
     function slowlyFade(delta) {
-        const FADE_OUT_RATE = 0.003;
+        const FADE_OUT_RATE = 0.005;
         const alpha = delta * FADE_OUT_RATE;
         context.save();
         context.fillStyle = `rgba(255,255,255,${alpha})`;
@@ -188,6 +188,7 @@
                     context.strokeStyle = "rgba(0, 0, 0, 1)";
                     context.fillStyle = "rgba(0, 0, 0, 1)";
                     context.lineWidth = 12;
+                    context.lineCap = "round";
                     context.beginPath();
                     let {x, y} = toCanvas(stroke[0]);
                     context.moveTo(x, y);
