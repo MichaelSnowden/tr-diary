@@ -2,7 +2,7 @@
 ![demo](demo.gif)
 
 This is a gift I made for my friend as just a dumb way for us to talk to each other. I found it pretty technically 
-interesting actually. 
+interesting actually. Demo: [https://tr-diary.herokuapp.com](https://tr-diary.herokuapp.com), might take a while to load if the Heroku worker is asleep.
 
 ## Features
 - Drawing
