@@ -12,9 +12,9 @@ app = Flask(__name__)
 sockets = Sockets(app)
 
 
-class Canvas:
-    def __init__(self, canvas_id):
-        self.canvas_id = canvas_id
+class Page:
+    def __init__(self, page_id):
+        self.page_id = page_id
         self.sockets: typing.List[WebSocket] = []
 
     def add(self, socket):
@@ -38,38 +38,38 @@ class Canvas:
         self.sockets = good_sockets
 
 
-canvases = {
+pages = {
 }
 
 
-@sockets.route('/socket/<canvas_id>')
-def canvas_socket(socket: WebSocket, canvas_id):
+@sockets.route('/socket/<page_id>')
+def page_socket(socket: WebSocket, page_id):
     try:
-        canvas = canvases[canvas_id]
+        page = pages[page_id]
     except KeyError:
-        socket.close(message="canvas {} does not exist".format(canvas_id))
+        socket.close(message="page {} does not exist".format(page_id))
         return
-    socket.send(json.dumps({"type": "num_peers", "num_peers": len(canvas.sockets)}))
-    canvas.add(socket)
-    print("num sockets", len(canvas.sockets))
+    socket.send(json.dumps({"type": "num_peers", "num_peers": len(page.sockets)}))
+    page.add(socket)
+    print("num sockets", len(page.sockets))
     while not socket.closed:
         message = socket.receive()
         if message is None:
             continue
-        canvas.send(socket, message)
+        page.send(socket, message)
 
-    canvas.remove(socket)
+    page.remove(socket)
 
 
 @app.route('/')
-@app.route('/<canvas_id>')
-def canvas_view(canvas_id=None):
-    if canvas_id is None:
-        canvas_id = "default"
-    if canvas_id not in canvases:
-        canvases[canvas_id] = Canvas(canvas_id)
-    canvas = canvases[canvas_id]
-    return render_template("index.html", canvas_id=canvas_id, my_id=str(uuid.uuid1()))
+@app.route('/<page_id>')
+def page_view(page_id=None):
+    if page_id is None:
+        page_id = "default"
+    if page_id not in pages:
+        pages[page_id] = Page(page_id)
+    page = pages[page_id]
+    return render_template("index.html", page_id=page_id, my_id=str(uuid.uuid1()))
 
 
 if __name__ == '__main__':
