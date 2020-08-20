@@ -40,16 +40,16 @@ interesting actually.
         - I wrote what is essentially a script in "generate_font.html"
             - In this file, I console.log each letter and then draw it. When I left click, I end the "recording" and export the strokes to a dictionary mapping characters to their strokes
             - This file ended up being 268KiB, which is about 20x what the size of a font file should be.
-                - I ended up not needing the timestamp data in the font files so I think I can compress this data to x,y coordinates
-                - The file can definitely be compressed to just each character's strokes which is roughly 2 points * 4 bytes per float * 26 characters * 73 points per character / 1024 B/KiB = ~15KiB
-        - The webpage just replays this strokes for the character you type both into the `writers` data structure and across the websocket broadcast to everyone on the page
+                - I ended up not needing the timestamp data in the font files so I think I can compress this data to x,y coordinates (with some delimiters for the strokes)
+                - The file can definitely be compressed to just each character's strokes which is roughly 2 points * 4 bytes per float * 26 characters * 73 points per character = ~15KiB
+        - The webpage just replays those strokes for the character you type both into the `writers` data structure and across the websocket broadcast to everyone on the page
 
-## Future ideas (in order of priority)
+## Future ideas (highest to lowest priority)
 - Don't send characters as individual points (this is insanely inefficient but was the easiest thing at the moment)
 - Use WebRTC instead of connecting to a central server
     - Obviously the central server is still needed to, at the very least, act as the "signaling server" to officiate the discovery of peers
 - Support punctuation
 - Support backspacing
-- Compress font file (I think this can get down to 17% by using a binary file format)
+- Compress the font file (I think this can get down to 17% by using a binary file format)
     - Each character could also be loaded async but I don't think this is very useful
 - Use binary websocket messages instead of JSON 
